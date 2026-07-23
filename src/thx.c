@@ -1,0 +1,6 @@
+#include "thx/00_prelude.inc"
+#include "thx/10_image.inc"
+#include "thx/20_memory.inc"
+#include "thx/30_linux.inc"
+#include "thx/40_vm32.inc"
+#include "thx/50_vm64.inc"

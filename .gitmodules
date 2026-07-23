@@ -1,0 +1,3 @@
+[submodule "upstream/thistle"]
+	path = upstream/thistle
+	url = https://github.com/kitty-crow/thistle.git

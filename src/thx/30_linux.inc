@@ -1,0 +1,5 @@
+#include "linux/part00.inc"
+#include "linux/part01.inc"
+#include "linux/part02.inc"
+#include "linux/part03.inc"
+#include "linux/part04.inc"

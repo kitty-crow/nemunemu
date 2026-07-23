@@ -1,0 +1,14 @@
+/build/
+/build-*/
+/dist/*
+!/dist/.gitkeep
+/generated/*
+!/generated/.gitkeep
+*.o
+*.a
+*.so
+*.wasm
+compile_commands.json
+.DS_Store
+.vscode/
+.idea/
