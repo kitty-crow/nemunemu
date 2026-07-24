@@ -21,6 +21,7 @@
 #define NEMU_BUSYBOX "/usr/libexec/nemunemu/busybox"
 #define NEMU_MARKER "#!thistle:"
 #define NEMU_SHELL_APPLET "sh"
+#define NEMU_HOSTNAME "mikuos"
 
 static int read_contract_line(const char *path, const char *prefix, char *out, size_t out_size) {
   FILE *file = fopen(path, "rb");
@@ -161,13 +162,19 @@ int nemu_compat_shell(const char *root) {
     return 71;
   }
 
+  if (sethostname(NEMU_HOSTNAME, strlen(NEMU_HOSTNAME)) < 0 && errno != EPERM) {
+    fprintf(stderr, "nemunemu: cannot set hostname: %s\n", strerror(errno));
+  }
+
   (void)setenv("PATH", "/bin:/usr/bin:/sbin:/usr/sbin", 1);
   (void)setenv("SHELL", "/bin/thsh", 1);
   (void)setenv("MIKUOS_KERNEL_MODE", "neru", 1);
   (void)setenv("MIKUOS_KERNEL_SOURCE", "Linux", 1);
-  if (!getenv("HOME")) (void)setenv("HOME", "/root", 1);
-  if (!getenv("USER")) (void)setenv("USER", "root", 1);
-  if (!getenv("PS1")) (void)setenv("PS1", "\\u@\\h:\\w\\$ ", 1);
+  (void)setenv("HOME", "/root", 1);
+  (void)setenv("USER", "root", 1);
+  (void)setenv("LOGNAME", "root", 1);
+  (void)setenv("HOSTNAME", NEMU_HOSTNAME, 1);
+  (void)setenv("PS1", "root@mikuos:\\w# ", 1);
   if (!getenv("TERM")) (void)setenv("TERM", "xterm-256color", 1);
 
   print_motd();
