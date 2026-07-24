@@ -7,11 +7,16 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <sched.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <sys/types.h>
 #include <sys/utsname.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #ifndef PATH_MAX
@@ -147,11 +152,12 @@ static int print_help(void) {
   return 0;
 }
 
-int nemu_compat_shell(const char *root) {
+static int prepare_compat_root(const char *root) {
   if (!root || !*root) {
     fprintf(stderr, "nemunemu: compatibility root is required\n");
     return 64;
   }
+
   char resolved[PATH_MAX];
   if (!realpath(root, resolved)) {
     fprintf(stderr, "nemunemu: %s: %s\n", root, strerror(errno));
@@ -176,6 +182,70 @@ int nemu_compat_shell(const char *root) {
   (void)setenv("HOSTNAME", NEMU_HOSTNAME, 1);
   (void)setenv("PS1", "root@mikuos:\\w# ", 1);
   if (!getenv("TERM")) (void)setenv("TERM", "xterm-256color", 1);
+  return 0;
+}
+
+static int shell_child(void *unused) {
+  (void)unused;
+
+  /* Give the interactive shell a normal process/session context beneath init. */
+  if (setsid() >= 0) {
+#ifdef TIOCSCTTY
+    (void)ioctl(STDIN_FILENO, TIOCSCTTY, 0);
+#endif
+  }
+
+  char *const shell_argv[] = {(char *)"busybox", (char *)NEMU_SHELL_APPLET, (char *)"-l", NULL};
+  execv(NEMU_BUSYBOX, shell_argv);
+  _exit(errno == ENOENT ? 127 : 126);
+}
+
+static pid_t spawn_shell(void) {
+#ifdef __wasm__
+  return clone(shell_child, NULL, CLONE_VM | CLONE_VFORK | SIGCHLD, NULL);
+#else
+  pid_t pid = fork();
+  if (pid == 0) shell_child(NULL);
+  return pid;
+#endif
+}
+
+int nemu_compat_init(const char *root) {
+  int status = prepare_compat_root(root);
+  if (status != 0) return status;
+
+  (void)signal(SIGCHLD, SIG_DFL);
+  print_motd();
+  fflush(stdout);
+
+  for (;;) {
+    pid_t shell = spawn_shell();
+    if (shell < 0) {
+      fprintf(stderr, "nemunemu: cannot spawn mikuOS shell: %s\n", strerror(errno));
+      sleep(1);
+      continue;
+    }
+
+    int shell_status = 0;
+    pid_t waited;
+    do {
+      waited = waitpid(shell, &shell_status, 0);
+    } while (waited < 0 && errno == EINTR);
+
+    if (waited < 0) {
+      fprintf(stderr, "nemunemu: cannot reap mikuOS shell: %s\n", strerror(errno));
+    } else if (WIFSIGNALED(shell_status)) {
+      fprintf(stderr, "nemunemu: shell terminated by signal %d; restarting\n", WTERMSIG(shell_status));
+    } else {
+      fprintf(stderr, "nemunemu: shell exited with status %d; restarting\n", WEXITSTATUS(shell_status));
+    }
+    sleep(1);
+  }
+}
+
+int nemu_compat_shell(const char *root) {
+  int status = prepare_compat_root(root);
+  if (status != 0) return status;
 
   print_motd();
   fflush(stdout);
