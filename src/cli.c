@@ -33,13 +33,13 @@ static void usage(FILE *out) {
 
 int nemunemu_cli_main(int argc, char **argv) {
   /*
-   * Linux invokes init with argv[0] only. In the NERU live-root architecture
-   * that means this executable is PID 1 inside the already-mounted mikuOS
-   * userspace, so enter that root directly and replace ourselves with the
-   * compatibility shell.
+   * Linux invokes init with argv[0] only. NEMUNEMU must remain PID 1 so it can
+   * supervise and reap the interactive shell. Replacing PID 1 with BusyBox hush
+   * gives the shell Linux init's special signal semantics and can leave it
+   * blocked forever while waiting for an otherwise completed command.
    */
   if (argc == 1) {
-    return nemu_compat_shell("/");
+    return nemu_compat_init("/");
   }
 
   if (argc >= 3 && strcmp(argv[1], "--shell") == 0) {
