@@ -3,4 +3,5 @@
 #include "thx/20_memory.inc"
 #include "thx/30_linux.inc"
 #include "thx/40_vm32.inc"
+#include "thx/45_rv64.inc"
 #include "thx/50_vm64.inc"
