@@ -167,7 +167,7 @@ int nemu_compat_shell(const char *root) {
   }
 
   (void)setenv("PATH", "/bin:/usr/bin:/sbin:/usr/sbin", 1);
-  (void)setenv("SHELL", "/bin/thsh", 1);
+  (void)setenv("SHELL", "/bin/sh", 1);
   (void)setenv("MIKUOS_KERNEL_MODE", "neru", 1);
   (void)setenv("MIKUOS_KERNEL_SOURCE", "Linux", 1);
   (void)setenv("HOME", "/root", 1);
