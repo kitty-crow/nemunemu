@@ -19,8 +19,30 @@ jobs:
           python-version: "3.x"
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-      - name: Build
-        run: cmake --build build --parallel
+      - name: Capture build
+        shell: bash
+        run: |
+          set +e
+          cmake --build build --parallel >native-build.log 2>&1
+          status=$?
+          printf '%s\n' "$status" >native-build.status
+          cat native-build.log
+          exit 0
+      - name: Upload compiler diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rv64-compiler-diagnostics
+          path: |
+            native-build.log
+            native-build.status
+      - name: Enforce build result
+        shell: bash
+        run: |
+          status="$(cat native-build.status)"
+          if [[ "$status" != "0" ]]; then
+            exit "$status"
+          fi
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
