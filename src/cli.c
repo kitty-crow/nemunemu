@@ -32,6 +32,16 @@ static void usage(FILE *out) {
 }
 
 int nemunemu_cli_main(int argc, char **argv) {
+  /*
+   * Linux invokes init with argv[0] only. In the NERU live-root architecture
+   * that means this executable is PID 1 inside the already-mounted mikuOS
+   * userspace, so enter that root directly and replace ourselves with the
+   * compatibility shell.
+   */
+  if (argc == 1) {
+    return nemu_compat_shell("/");
+  }
+
   if (argc >= 3 && strcmp(argv[1], "--shell") == 0) {
     return nemu_compat_shell(argv[2]);
   }
