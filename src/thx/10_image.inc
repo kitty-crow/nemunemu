@@ -110,9 +110,11 @@ static int parse_metadata(
     image->isa = strdup("thistle");
     if (!image->isa) { free(machine); return NEMU_OSERR; }
   }
-  if (strcmp(image->isa, "thistle") != 0) {
+  bool supported_isa = strcmp(image->isa, "thistle") == 0 ||
+    (image->bits == 64 && strcmp(image->isa, "rv64gc") == 0);
+  if (!supported_isa) {
     set_message(message, message_size,
-      "NEMUNEMU currently executes the canonical Thistle ISA, not %s", image->isa);
+      "NEMUNEMU does not execute the %s instruction profile", image->isa);
     free(machine);
     return NEMU_UNAVAILABLE;
   }
@@ -252,4 +254,3 @@ fail:
   free_image(image);
   return status;
 }
-
