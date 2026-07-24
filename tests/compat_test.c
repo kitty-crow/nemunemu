@@ -27,6 +27,28 @@ int main(void) {
   assert(strcmp(value, "ls") == 0);
   unlink(marker);
 
+  static const char *const supported[] = {
+    "[", "base64", "basename", "cat", "chmod", "chown", "clear", "cp", "cut",
+    "date", "df", "dirname", "dmesg", "echo", "env", "expr", "false", "file", "find",
+    "free", "grep", "head", "help", "hostname", "id", "kill", "ln", "ls", "mkdir",
+    "mount", "mv", "printenv", "printf", "ps", "pwd", "readlink", "rm", "rmdir",
+    "sed", "seq", "sh", "sleep", "sort", "stat", "strings", "tail", "tee", "test",
+    "thsh", "time", "touch", "tr", "true", "uname", "uniq", "uptime", "wc", "wget",
+    "which", "whoami", "yes"
+  };
+  for (size_t index = 0; index < sizeof(supported) / sizeof(supported[0]); ++index) {
+    assert(nemu_compat_marker_supported(supported[index]));
+  }
+
+  static const char *const unsupported[] = {
+    "as", "dis", "elf2thx", "ld", "nm", "objdump", "size", "wasm"
+  };
+  for (size_t index = 0; index < sizeof(unsupported) / sizeof(unsupported[0]); ++index) {
+    assert(!nemu_compat_marker_supported(unsupported[index]));
+  }
+  assert(!nemu_compat_marker_supported(NULL));
+  assert(!nemu_compat_marker_supported(""));
+
   char thx[] = "/tmp/nemunemu-thx-XXXXXX";
   int thx_fd = mkstemp(thx);
   assert(thx_fd >= 0);

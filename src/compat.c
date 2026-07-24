@@ -78,17 +78,23 @@ static bool safe_name(const char *name) {
 static bool busybox_applet(const char *name) {
   static const char *const applets[] = {
     "[", "base64", "basename", "cat", "chmod", "chown", "clear", "cp", "cut",
-    "date", "df", "dirname", "dmesg", "echo", "env", "expr", "false", "find",
+    "date", "df", "dirname", "dmesg", "echo", "env", "expr", "false", "file", "find",
     "free", "grep", "head", "hostname", "id", "kill", "ln", "ls", "mkdir",
     "mount", "mv", "printenv", "printf", "ps", "pwd", "readlink", "rm", "rmdir",
-    "sed", "seq", "sh", "sleep", "sort", "stat", "tail", "tee", "test", "time",
+    "sed", "seq", "sh", "sleep", "sort", "stat", "strings", "tail", "tee", "test", "time",
     "touch", "tr", "true", "uname", "uniq", "uptime", "wc", "wget", "which",
     "whoami", "yes"
   };
+  if (!name) return false;
   for (size_t i = 0; i < sizeof(applets) / sizeof(applets[0]); ++i) {
     if (strcmp(name, applets[i]) == 0) return true;
   }
   return false;
+}
+
+bool nemu_compat_marker_supported(const char *name) {
+  if (!name) return false;
+  return strcmp(name, "thsh") == 0 || strcmp(name, "help") == 0 || busybox_applet(name);
 }
 
 static int exec_busybox(const char *applet, int argc, char **argv) {
