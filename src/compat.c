@@ -20,6 +20,7 @@
 
 #define NEMU_BUSYBOX "/usr/libexec/nemunemu/busybox"
 #define NEMU_MARKER "#!thistle:"
+#define NEMU_SHELL_APPLET "sh"
 
 static int read_contract_line(const char *path, const char *prefix, char *out, size_t out_size) {
   FILE *file = fopen(path, "rb");
@@ -171,7 +172,7 @@ int nemu_compat_shell(const char *root) {
 
   print_motd();
   fflush(stdout);
-  char *const shell_argv[] = {(char *)"busybox", (char *)"ash", (char *)"-l", NULL};
+  char *const shell_argv[] = {(char *)"busybox", (char *)NEMU_SHELL_APPLET, (char *)"-l", NULL};
   execv(NEMU_BUSYBOX, shell_argv);
   fprintf(stderr, "nemunemu: cannot start mikuOS shell: %s\n", strerror(errno));
   return errno == ENOENT ? 127 : 126;
@@ -182,7 +183,7 @@ int nemu_compat_marker(const char *script, int argc, char **argv) {
   int status = nemu_compat_read_marker(script, applet, sizeof(applet));
   if (status != 0) return status;
 
-  if (strcmp(applet, "thsh") == 0) return exec_busybox("ash", argc, argv);
+  if (strcmp(applet, "thsh") == 0) return exec_busybox(NEMU_SHELL_APPLET, argc, argv);
   if (strcmp(applet, "help") == 0) return print_help();
   if (busybox_applet(applet)) return exec_busybox(applet, argc, argv);
 
