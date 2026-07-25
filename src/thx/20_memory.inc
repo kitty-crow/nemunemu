@@ -1,28 +1,122 @@
 static int memory_init(NemuMemory *memory, uint64_t size) {
   memset(memory, 0, sizeof(*memory));
   memory->size = size;
-  uint64_t pages = (size + NEMU_PAGE_SIZE - 1u) >> NEMU_PAGE_SHIFT;
-  if (pages > SIZE_MAX / sizeof(*memory->pages)) return -1;
+
+  uint64_t pages =
+    (size + NEMU_PAGE_SIZE - 1u) >> NEMU_PAGE_SHIFT;
+
+  if (pages == 0 || pages > (UINT64_C(1) << 24)) {
+    return -1;
+  }
+
   memory->page_count = (size_t)pages;
-  memory->pages = calloc(memory->page_count, sizeof(*memory->pages));
-  return memory->pages ? 0 : -1;
+  memory->roots = calloc(
+    NEMU_PAGE_RADIX_ENTRIES,
+    sizeof(*memory->roots)
+  );
+
+  return memory->roots ? 0 : -1;
 }
 
 static void memory_free(NemuMemory *memory) {
   if (!memory) return;
-  for (size_t i = 0; i < memory->page_count; ++i) free(memory->pages[i]);
-  free(memory->pages);
+
+  if (memory->roots) {
+    for (size_t root_index = 0;
+         root_index < NEMU_PAGE_RADIX_ENTRIES;
+         ++root_index) {
+      uint8_t ***middle = memory->roots[root_index];
+      if (!middle) continue;
+
+      for (size_t middle_index = 0;
+           middle_index < NEMU_PAGE_RADIX_ENTRIES;
+           ++middle_index) {
+        uint8_t **leaf = middle[middle_index];
+        if (!leaf) continue;
+
+        for (size_t leaf_index = 0;
+             leaf_index < NEMU_PAGE_RADIX_ENTRIES;
+             ++leaf_index) {
+          free(leaf[leaf_index]);
+        }
+
+        free(leaf);
+      }
+
+      free(middle);
+    }
+
+    free(memory->roots);
+  }
+
   memset(memory, 0, sizeof(*memory));
 }
 
-static uint8_t *memory_page(NemuVm *vm, uint64_t addr, bool create) {
-  size_t index = (size_t)(addr >> NEMU_PAGE_SHIFT);
-  if (index >= vm->memory.page_count) vm_fault(vm, NEMU_DATA, "memory address outside image");
-  if (!vm->memory.pages[index] && create) {
-    vm->memory.pages[index] = calloc(1, NEMU_PAGE_SIZE);
-    if (!vm->memory.pages[index]) vm_fault(vm, NEMU_OSERR, "out of host memory");
+static uint8_t *memory_page(
+  NemuVm *vm,
+  uint64_t addr,
+  bool create
+) {
+  uint64_t raw_index = addr >> NEMU_PAGE_SHIFT;
+
+  if (raw_index >= vm->memory.page_count) {
+    vm_fault(
+      vm,
+      NEMU_DATA,
+      "memory address outside image"
+    );
   }
-  return vm->memory.pages[index];
+
+  size_t root_index =
+    (size_t)((raw_index >> 16u) & NEMU_PAGE_RADIX_MASK);
+  size_t middle_index =
+    (size_t)((raw_index >> 8u) & NEMU_PAGE_RADIX_MASK);
+  size_t leaf_index =
+    (size_t)(raw_index & NEMU_PAGE_RADIX_MASK);
+
+  uint8_t ***middle = vm->memory.roots[root_index];
+
+  if (!middle) {
+    if (!create) return NULL;
+
+    middle = calloc(
+      NEMU_PAGE_RADIX_ENTRIES,
+      sizeof(*middle)
+    );
+
+    if (!middle) {
+      vm_fault(vm, NEMU_OSERR, "out of host memory");
+    }
+
+    vm->memory.roots[root_index] = middle;
+  }
+
+  uint8_t **leaf = middle[middle_index];
+
+  if (!leaf) {
+    if (!create) return NULL;
+
+    leaf = calloc(
+      NEMU_PAGE_RADIX_ENTRIES,
+      sizeof(*leaf)
+    );
+
+    if (!leaf) {
+      vm_fault(vm, NEMU_OSERR, "out of host memory");
+    }
+
+    middle[middle_index] = leaf;
+  }
+
+  if (!leaf[leaf_index] && create) {
+    leaf[leaf_index] = calloc(1, NEMU_PAGE_SIZE);
+
+    if (!leaf[leaf_index]) {
+      vm_fault(vm, NEMU_OSERR, "out of host memory");
+    }
+  }
+
+  return leaf[leaf_index];
 }
 
 static bool section_contains(const NemuSection *s, uint64_t addr, size_t size) {

@@ -42,12 +42,20 @@ enum {
 
 #define NEMU_PAGE_SHIFT 16u
 #define NEMU_PAGE_SIZE (1u << NEMU_PAGE_SHIFT)
+
+/*
+ * Three sparse radix levels cover the 24-bit page index of a 1-TiB
+ * Thistle64 address space using 256 entries per level.
+ */
+#define NEMU_PAGE_RADIX_BITS 8u
+#define NEMU_PAGE_RADIX_ENTRIES (1u << NEMU_PAGE_RADIX_BITS)
+#define NEMU_PAGE_RADIX_MASK (NEMU_PAGE_RADIX_ENTRIES - 1u)
 #define NEMU_MAX_SECTIONS 4096u
 #define NEMU_MAX_JSON_DEPTH 64u
 #define NEMU_MAX_PATH 4096u
 #define NEMU_MAX_ARGS 4096u
 #define NEMU_MAX_IO (64u * 1024u * 1024u)
-#define NEMU_MAX_LOGICAL_MEMORY (8ull * 1024ull * 1024ull * 1024ull)
+#define NEMU_MAX_LOGICAL_MEMORY (1ull << 40)
 
 typedef struct {
   char *name;
@@ -74,7 +82,7 @@ typedef struct {
 typedef struct {
   uint64_t size;
   size_t page_count;
-  uint8_t **pages;
+  uint8_t ****roots;
 } NemuMemory;
 
 typedef struct NemuVm {
@@ -119,7 +127,10 @@ _Noreturn static void vm_fault(NemuVm *vm, int status, const char *format, ...) 
   (void)vsnprintf(vm->fault, sizeof(vm->fault), format, args);
   va_end(args);
 #if defined(__wasm__)
-  fprintf(stderr, "nemunemu: %s\n", vm->fault);
+  static const char prefix[] = "nemunemu: ";
+  (void)write(STDERR_FILENO, prefix, sizeof(prefix) - 1u);
+  (void)write(STDERR_FILENO, vm->fault, strlen(vm->fault));
+  (void)write(STDERR_FILENO, "\n", 1u);
   _Exit(status ? status : NEMU_SOFTWARE);
 #else
   if (vm->trap_ready) longjmp(vm->trap, 1);

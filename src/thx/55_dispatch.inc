@@ -35,8 +35,9 @@ int nemu_run(const nemu_run_options *options) {
       return NEMU_NOINPUT;
     }
   } else if (S_ISREG(st.st_mode)) {
-    if (!realpath(options->image_path, entry_host)) {
-      fprintf(stderr, "nemunemu: %s: %s\n", options->image_path, strerror(errno));
+    if (snprintf(entry_host, sizeof(entry_host), "%s", options->image_path) >=
+        (int)sizeof(entry_host)) {
+      fprintf(stderr, "nemunemu: image path is too long\n");
       return NEMU_NOINPUT;
     }
     if (!root) root = "/";
@@ -63,7 +64,13 @@ int nemu_run(const nemu_run_options *options) {
   }
   status = vm_prepare(&vm, &image, &resolved);
   if (status != NEMU_OK) {
+#if defined(__wasm__)
+    static const char message[] =
+      "nemunemu: could not initialise guest runtime\n";
+    (void)write(STDERR_FILENO, message, sizeof(message) - 1u);
+#else
     fprintf(stderr, "nemunemu: could not initialise guest runtime\n");
+#endif
     free_image(&image);
     return status;
   }

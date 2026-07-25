@@ -39,13 +39,29 @@ static int vm_prepare(NemuVm *vm, const NemuImage *image, const nemu_run_options
     unsigned long long n = strtoull(fuel, &end, 10);
     if (end && *end == '\0') vm->fuel = n;
   }
-  if (memory_init(&vm->memory, image->mem_size) < 0) return NEMU_OSERR;
+  if (memory_init(&vm->memory, image->mem_size) < 0) {
+#if defined(__wasm__)
+    static const char message[] =
+      "nemunemu: vm_prepare failed at memory_init\n";
+    (void)write(STDERR_FILENO, message, sizeof(message) - 1u);
+#endif
+    return NEMU_OSERR;
+  }
   uint64_t highest = 0;
   for (size_t i = 0; i < image->section_count; ++i) {
     const NemuSection *s = &image->sections[i];
     uint64_t end = s->addr + s->size;
     if (end > highest) highest = end;
     if (s->payload_len) {
+#if defined(__wasm__)
+      static const char section_message[] =
+        "nemunemu: loading THX section\n";
+      (void)write(
+        STDERR_FILENO,
+        section_message,
+        sizeof(section_message) - 1u
+      );
+#endif
       memory_write_raw(vm, s->addr,
         image->file + image->payload_base + (size_t)s->payload_at,
         (size_t)s->payload_len);
@@ -64,14 +80,40 @@ static int vm_prepare(NemuVm *vm, const NemuImage *image, const nemu_run_options
     if (stack_size > 4u * 1024u * 1024u) stack_size = 4u * 1024u * 1024u;
   }
   vm->stack_at = image->mem_size - stack_size;
+#if defined(__wasm__)
+  static const char prepared_message[] =
+    "nemunemu: sparse memory and sections prepared\n";
+  (void)write(
+    STDERR_FILENO,
+    prepared_message,
+    sizeof(prepared_message) - 1u
+  );
+#endif
   if (vm->stack_at <= vm->brk + (image->bits == 64 ? 1024u * 1024u : 65536u)) {
     memory_free(&vm->memory);
     return NEMU_DATA;
   }
-  if (!realpath(options->root_path ? options->root_path : "/", vm->root)) {
+  const char *requested_root =
+    options->root_path ? options->root_path : "/";
+
+#if defined(__wasm__)
+  /*
+   * Linux-WASM has already mounted and pivoted into mikuosfs. Avoid realpath()
+   * and stat() here because their musl implementations require VFS operations
+   * that the initial read-only mikuosfs does not yet provide.
+   */
+  if (requested_root[0] != '/' ||
+      snprintf(vm->root, sizeof(vm->root), "%s", requested_root) >=
+        (int)sizeof(vm->root)) {
     memory_free(&vm->memory);
     return NEMU_NOINPUT;
   }
+#else
+  if (!realpath(requested_root, vm->root)) {
+    memory_free(&vm->memory);
+    return NEMU_NOINPUT;
+  }
+#endif
   (void)snprintf(vm->cwd, sizeof(vm->cwd), "/");
 #if defined(__linux__)
   ssize_t self_n = readlink("/proc/self/exe", vm->self, sizeof(vm->self) - 1u);
