@@ -27,6 +27,8 @@
 #define NEMU_MARKER "#!thistle:"
 #define NEMU_SHELL_APPLET "sh"
 #define NEMU_HOSTNAME "mikuos"
+#define NEMU_HOST_SHUTDOWN_PREFIX "\033]777;neru-shutdown="
+#define NEMU_HOST_SHUTDOWN_SUFFIX "\007"
 
 static int read_contract_line(const char *path, const char *prefix, char *out, size_t out_size) {
   FILE *file = fopen(path, "rb");
@@ -210,6 +212,34 @@ static pid_t spawn_shell(void) {
 #endif
 }
 
+static void request_host_shutdown(int status) {
+  char message[64];
+  const int length = snprintf(
+    message,
+    sizeof(message),
+    "%s%d%s",
+    NEMU_HOST_SHUTDOWN_PREFIX,
+    status,
+    NEMU_HOST_SHUTDOWN_SUFFIX
+  );
+
+  if (length <= 0 || (size_t)length >= sizeof(message)) return;
+
+  size_t offset = 0;
+  while (offset < (size_t)length) {
+    const ssize_t written = write(
+      STDOUT_FILENO,
+      message + offset,
+      (size_t)length - offset
+    );
+
+    if (written < 0 && errno == EINTR) continue;
+    if (written <= 0) return;
+
+    offset += (size_t)written;
+  }
+}
+
 int nemu_compat_init(const char *root) {
   int status = prepare_compat_root(root);
   if (status != 0) return status;
@@ -236,8 +266,23 @@ int nemu_compat_init(const char *root) {
       fprintf(stderr, "nemunemu: cannot reap mikuOS shell: %s\n", strerror(errno));
     } else if (WIFSIGNALED(shell_status)) {
       fprintf(stderr, "nemunemu: shell terminated by signal %d; restarting\n", WTERMSIG(shell_status));
+    } else if (WIFEXITED(shell_status)) {
+      const int exit_status = WEXITSTATUS(shell_status);
+      fprintf(
+        stderr,
+        "nemunemu: shell exited with status %d; shutting down\n",
+        exit_status
+      );
+      fflush(stderr);
+      request_host_shutdown(exit_status);
+
+      /*
+       * PID 1 must not return. The Neru host consumes the shutdown message
+       * and terminates the Linux workers.
+       */
+      for (;;) pause();
     } else {
-      fprintf(stderr, "nemunemu: shell exited with status %d; restarting\n", WEXITSTATUS(shell_status));
+      fprintf(stderr, "nemunemu: shell changed state unexpectedly; restarting\n");
     }
     sleep(1);
   }
