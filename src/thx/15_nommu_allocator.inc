@@ -36,6 +36,7 @@ static void *nemu_nommu_malloc(size_t size) {
   if (header_size > SIZE_MAX - payload_size) return NULL;
 
   const size_t total = header_size + payload_size;
+  if (total > NEMU_NOMMU_ARENA_BYTES) return NULL;
   if (nemu_nommu_arena_used > NEMU_NOMMU_ARENA_BYTES - total) return NULL;
 
   unsigned char *base = nemu_nommu_arena.bytes + nemu_nommu_arena_used;
