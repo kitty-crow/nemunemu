@@ -1,4 +1,5 @@
 #include "thx/00_prelude.inc"
+#include "thx/15_nommu_allocator.inc"
 #include <sys/utsname.h>
 #include "thx/10_image.inc"
 #include "thx/20_memory.inc"
