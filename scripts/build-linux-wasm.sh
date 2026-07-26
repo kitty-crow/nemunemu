@@ -20,6 +20,15 @@ need_file() {
     }
 }
 
+case "$VARIANT" in
+    wasm32_nommu|wasm64_nommu)
+        NEMUNEMU_MEMORY_FLAGS=(-DNEMU_NOMMU=1)
+        ;;
+    *)
+        NEMUNEMU_MEMORY_FLAGS=()
+        ;;
+esac
+
 need_file "$CC"
 need_file "$LLVM/bin/clang"
 need_file "$SYSROOT/lib/libc.a"
@@ -36,6 +45,7 @@ export REAL_LLVM="$LLVM/bin"
     --sysroot="$SYSROOT" \
     -isystem "$KERNEL_HEADERS" \
     -D__linux__ \
+    "${NEMUNEMU_MEMORY_FLAGS[@]}" \
     -std=c17 \
     -O2 \
     -fPIC \
