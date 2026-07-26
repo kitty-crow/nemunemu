@@ -3,7 +3,7 @@
 #include <stddef.h>
 
 #ifndef NEMU_NOMMU_ARENA_BYTES
-#define NEMU_NOMMU_ARENA_BYTES (64u * 1024u * 1024u)
+#define NEMU_NOMMU_ARENA_BYTES (2u * 1024u * 1024u)
 #endif
 
 typedef union {
